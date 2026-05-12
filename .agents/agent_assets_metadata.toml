@@ -1,0 +1,8 @@
+uploads = []
+outputs = []
+
+[[generated]]
+id = "01qmz7bRJtkePTkkSpI2b"
+uri = "file://artifacts/mobile/assets/images/icon.png"
+type = "image"
+title = "finance journal app icon"
