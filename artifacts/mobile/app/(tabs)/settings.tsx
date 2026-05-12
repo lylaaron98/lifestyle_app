@@ -1,4 +1,5 @@
 import { Feather } from "@expo/vector-icons";
+import { useRouter } from "expo-router";
 import React, { useState } from "react";
 import {
   Modal,
@@ -18,11 +19,13 @@ const CURRENCIES = [
   { symbol: "£", label: "GBP - British Pound" },
   { symbol: "$", label: "USD - US Dollar" },
   { symbol: "€", label: "EUR - Euro" },
+  { symbol: "S$", label: "SGD - Singapore Dollar" },
   { symbol: "¥", label: "JPY - Japanese Yen" },
   { symbol: "₹", label: "INR - Indian Rupee" },
   { symbol: "A$", label: "AUD - Australian Dollar" },
   { symbol: "C$", label: "CAD - Canadian Dollar" },
   { symbol: "CHF", label: "CHF - Swiss Franc" },
+  { symbol: "kr", label: "SEK - Swedish Krona" },
 ];
 
 interface RowProps {
@@ -31,21 +34,23 @@ interface RowProps {
   value?: string;
   onPress?: () => void;
   destructive?: boolean;
+  last?: boolean;
 }
 
 export default function SettingsScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
+  const router = useRouter();
   const { currency, setCurrency, expenses, savingsPots, journalEntries } = useApp();
   const [showCurrency, setShowCurrency] = useState(false);
 
   const topInset = Platform.OS === "web" ? 67 : insets.top;
   const bottomPad = Platform.OS === "web" ? 34 : 100;
 
-  function Row({ icon, label, value, onPress, destructive }: RowProps) {
+  function Row({ icon, label, value, onPress, destructive, last }: RowProps) {
     return (
       <TouchableOpacity
-        style={[styles.row, { borderBottomColor: colors.border }]}
+        style={[styles.row, !last && { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.border }]}
         onPress={onPress}
         activeOpacity={onPress ? 0.7 : 1}
         disabled={!onPress}
@@ -63,7 +68,11 @@ export default function SettingsScreen() {
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       <View style={[styles.header, { paddingTop: topInset + 16, backgroundColor: colors.background, borderBottomColor: colors.border }]}>
+        <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
+          <Feather name="arrow-left" size={22} color={colors.foreground} />
+        </TouchableOpacity>
         <Text style={[styles.title, { color: colors.foreground }]}>Settings</Text>
+        <View style={{ width: 36 }} />
       </View>
 
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: bottomPad }}>
@@ -75,6 +84,7 @@ export default function SettingsScreen() {
             label="Currency"
             value={currency}
             onPress={() => setShowCurrency(true)}
+            last
           />
         </View>
 
@@ -83,17 +93,16 @@ export default function SettingsScreen() {
         <View style={[styles.group, { backgroundColor: colors.card, borderColor: colors.border }]}>
           <Row icon="credit-card" label="Expenses & Subscriptions" value={`${expenses.length} items`} />
           <Row icon="trending-up" label="Savings Pots" value={`${savingsPots.length} pots`} />
-          <Row icon="book-open" label="Journal Entries" value={`${journalEntries.length} entries`} />
+          <Row icon="book-open" label="Journal Entries" value={`${journalEntries.length} entries`} last />
         </View>
 
         {/* About */}
         <Text style={[styles.section, { color: colors.mutedForeground }]}>About</Text>
         <View style={[styles.group, { backgroundColor: colors.card, borderColor: colors.border }]}>
           <Row icon="info" label="Version" value="1.0.0" />
-          <Row icon="lock" label="Privacy" value="All data stored locally" />
+          <Row icon="lock" label="Privacy" value="All data stored locally" last />
         </View>
 
-        {/* App info */}
         <View style={styles.footer}>
           <View style={[styles.footerIconWrap, { backgroundColor: "#2B7FFF18" }]}>
             <Feather name="zap" size={22} color="#2B7FFF" />
@@ -140,11 +149,12 @@ export default function SettingsScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  header: { paddingHorizontal: 20, paddingBottom: 16, borderBottomWidth: 1 },
-  title: { fontSize: 26, fontFamily: "Inter_700Bold" },
+  header: { flexDirection: "row", alignItems: "center", paddingHorizontal: 20, paddingBottom: 16, borderBottomWidth: 1, gap: 12 },
+  backBtn: { width: 36, height: 36, alignItems: "center", justifyContent: "center" },
+  title: { flex: 1, fontSize: 20, fontFamily: "Inter_700Bold", textAlign: "center" },
   section: { fontSize: 12, fontFamily: "Inter_600SemiBold", textTransform: "uppercase", letterSpacing: 0.8, paddingHorizontal: 20, paddingTop: 20, paddingBottom: 8 },
   group: { marginHorizontal: 16, borderRadius: 16, borderWidth: 1, overflow: "hidden" },
-  row: { flexDirection: "row", alignItems: "center", paddingHorizontal: 14, paddingVertical: 14, gap: 12, borderBottomWidth: StyleSheet.hairlineWidth },
+  row: { flexDirection: "row", alignItems: "center", paddingHorizontal: 14, paddingVertical: 14, gap: 12 },
   rowIcon: { width: 32, height: 32, borderRadius: 8, alignItems: "center", justifyContent: "center" },
   rowLabel: { flex: 1, fontSize: 15, fontFamily: "Inter_500Medium" },
   rowValue: { fontSize: 14, fontFamily: "Inter_400Regular" },
@@ -157,6 +167,6 @@ const styles = StyleSheet.create({
   modalCancel: { fontSize: 15, fontFamily: "Inter_400Regular", width: 60 },
   modalTitle: { fontSize: 17, fontFamily: "Inter_600SemiBold" },
   currencyRow: { flexDirection: "row", alignItems: "center", gap: 12, padding: 14, borderRadius: 12, borderWidth: 1 },
-  currencySymbol: { fontSize: 18, fontFamily: "Inter_700Bold", width: 36 },
+  currencySymbol: { fontSize: 18, fontFamily: "Inter_700Bold", width: 40 },
   currencyLabel: { flex: 1, fontSize: 14, fontFamily: "Inter_400Regular" },
 });

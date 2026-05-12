@@ -23,13 +23,17 @@ function NativeTabLayout() {
         <Icon sf={{ default: "chart.line.uptrend.xyaxis", selected: "chart.line.uptrend.xyaxis.circle.fill" }} />
         <Label>Savings</Label>
       </NativeTabs.Trigger>
+      <NativeTabs.Trigger name="calendar">
+        <Icon sf={{ default: "calendar", selected: "calendar.circle.fill" }} />
+        <Label>Calendar</Label>
+      </NativeTabs.Trigger>
       <NativeTabs.Trigger name="journal">
         <Icon sf={{ default: "book", selected: "book.fill" }} />
         <Label>Journal</Label>
       </NativeTabs.Trigger>
-      <NativeTabs.Trigger name="settings">
-        <Icon sf={{ default: "gearshape", selected: "gearshape.fill" }} />
-        <Label>Settings</Label>
+      <NativeTabs.Trigger name="ai">
+        <Icon sf={{ default: "sparkles", selected: "sparkles" }} />
+        <Label>AI</Label>
       </NativeTabs.Trigger>
     </NativeTabs>
   );
@@ -52,7 +56,6 @@ function ClassicTabLayout() {
           position: "absolute",
           backgroundColor: isIOS ? "transparent" : colors.card,
           borderTopWidth: 0,
-          borderTopColor: colors.border,
           elevation: 0,
           height: isWeb ? 84 : 60,
           paddingBottom: isWeb ? 34 : 8,
@@ -64,10 +67,8 @@ function ClassicTabLayout() {
               tint={isDark ? "dark" : "light"}
               style={StyleSheet.absoluteFill}
             />
-          ) : isWeb ? (
-            <View style={[StyleSheet.absoluteFill, { backgroundColor: colors.card, borderTopWidth: 1, borderTopColor: colors.border }]} />
           ) : (
-            <View style={[StyleSheet.absoluteFill, { backgroundColor: colors.card }]} />
+            <View style={[StyleSheet.absoluteFill, { backgroundColor: colors.card, borderTopWidth: 1, borderTopColor: colors.border }]} />
           ),
         tabBarLabelStyle: {
           fontSize: 10,
@@ -80,36 +81,47 @@ function ClassicTabLayout() {
         name="index"
         options={{
           title: "Overview",
-          tabBarIcon: ({ color }) => <Feather name="grid" size={22} color={color} />,
+          tabBarIcon: ({ color }) => <Feather name="grid" size={20} color={color} />,
         }}
       />
       <Tabs.Screen
         name="expenses"
         options={{
           title: "Expenses",
-          tabBarIcon: ({ color }) => <Feather name="credit-card" size={22} color={color} />,
+          tabBarIcon: ({ color }) => <Feather name="credit-card" size={20} color={color} />,
         }}
       />
       <Tabs.Screen
         name="savings"
         options={{
           title: "Savings",
-          tabBarIcon: ({ color }) => <Feather name="trending-up" size={22} color={color} />,
+          tabBarIcon: ({ color }) => <Feather name="trending-up" size={20} color={color} />,
+        }}
+      />
+      <Tabs.Screen
+        name="calendar"
+        options={{
+          title: "Calendar",
+          tabBarIcon: ({ color }) => <Feather name="calendar" size={20} color={color} />,
         }}
       />
       <Tabs.Screen
         name="journal"
         options={{
           title: "Journal",
-          tabBarIcon: ({ color }) => <Feather name="book-open" size={22} color={color} />,
+          tabBarIcon: ({ color }) => <Feather name="book-open" size={20} color={color} />,
+        }}
+      />
+      <Tabs.Screen
+        name="ai"
+        options={{
+          title: "AI",
+          tabBarIcon: ({ color }) => <Feather name="zap" size={20} color={color} />,
         }}
       />
       <Tabs.Screen
         name="settings"
-        options={{
-          title: "Settings",
-          tabBarIcon: ({ color }) => <Feather name="settings" size={22} color={color} />,
-        }}
+        options={{ href: null }}
       />
     </Tabs>
   );
