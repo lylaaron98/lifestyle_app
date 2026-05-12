@@ -156,12 +156,21 @@ export default function ExpensesScreen() {
             <View style={styles.cardMeta}>
               <View style={[styles.badge, { backgroundColor: item.color + "22" }]}>
                 <Text style={[styles.badgeText, { color: item.color }]}>
-                  {item.category === "subscription" ? "Sub" : "Expense"}
+                  {item.category === "subscription" ? "Sub" : "One-off"}
                 </Text>
               </View>
-              <Text style={[styles.metaText, { color: colors.mutedForeground }]}>
-                {item.frequency}
-              </Text>
+              {item.category === "subscription" ? (
+                <View style={styles.recurringChip}>
+                  <Feather name="refresh-cw" size={9} color={colors.primary} />
+                  <Text style={[styles.recurringText, { color: colors.primary }]}>
+                    {item.frequency.charAt(0).toUpperCase() + item.frequency.slice(1)}
+                  </Text>
+                </View>
+              ) : (
+                <Text style={[styles.metaText, { color: colors.mutedForeground }]}>
+                  {item.frequency}
+                </Text>
+              )}
             </View>
           </View>
           <View style={styles.cardRight}>
@@ -313,8 +322,10 @@ export default function ExpensesScreen() {
                 ))}
               </View>
 
-              {/* Frequency */}
-              <Text style={[styles.label, { color: colors.mutedForeground }]}>Frequency</Text>
+              {/* Frequency / Billing Cycle */}
+              <Text style={[styles.label, { color: colors.mutedForeground }]}>
+                {form.category === "subscription" ? "Billing Cycle (Recurring)" : "Frequency"}
+              </Text>
               <View style={styles.pillRow}>
                 {FREQUENCIES.map((f) => (
                   <TouchableOpacity
@@ -403,6 +414,8 @@ const styles = StyleSheet.create({
   badge: { paddingHorizontal: 8, paddingVertical: 2, borderRadius: 8 },
   badgeText: { fontSize: 10, fontFamily: "Inter_600SemiBold" },
   metaText: { fontSize: 11, fontFamily: "Inter_400Regular", textTransform: "capitalize" },
+  recurringChip: { flexDirection: "row", alignItems: "center", gap: 3, backgroundColor: "rgba(43,127,255,0.12)", paddingHorizontal: 7, paddingVertical: 2, borderRadius: 8 },
+  recurringText: { fontSize: 10, fontFamily: "Inter_600SemiBold" },
   cardRight: { alignItems: "flex-end", gap: 2 },
   cardAmount: { fontSize: 16, fontFamily: "Inter_700Bold" },
   cardMonthly: { fontSize: 11, fontFamily: "Inter_400Regular" },
