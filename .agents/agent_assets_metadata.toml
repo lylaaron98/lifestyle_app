@@ -1,8 +1,13 @@
 uploads = []
-outputs = []
 
 [[generated]]
 id = "01qmz7bRJtkePTkkSpI2b"
 uri = "file://artifacts/mobile/assets/images/icon.png"
 type = "image"
 title = "finance journal app icon"
+
+[[outputs]]
+id = "rMYcg-VZJOgnHIy7narx_"
+uri = "file://finance-journal-app.tar.gz"
+type = "unspecified"
+title = "Finance & Journal — Source Code"
