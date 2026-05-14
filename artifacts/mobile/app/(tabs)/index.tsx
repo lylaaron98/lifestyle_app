@@ -32,7 +32,15 @@ export default function OverviewScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const { expenses, savingsPots, journalEntries, currency } = useApp();
+  const { expenses, savingsPots, journalEntries, currency, profileName, profileEmoji } = useApp();
+
+  const greeting = (() => {
+    const h = new Date().getHours();
+    if (h >= 5 && h < 12) return "Good morning";
+    if (h >= 12 && h < 18) return "Good afternoon";
+    if (h >= 18 && h < 22) return "Good evening";
+    return "Good night";
+  })();
 
   const totalMonthly = useMemo(
     () => expenses.reduce((sum, e) => sum + toMonthly(e.amount, e.frequency), 0),
@@ -74,7 +82,9 @@ export default function OverviewScreen() {
           colors={["#0D1529", "#0A0B10"]}
           style={[styles.header, { paddingTop: topInset + 20 }]}
         >
-          <Text style={[styles.greeting, { color: colors.mutedForeground }]}>Good day</Text>
+          <Text style={[styles.greeting, { color: colors.mutedForeground }]}>
+            {profileEmoji ? `${profileEmoji}  ` : ""}{profileName ? `${greeting}, ${profileName}` : greeting}
+          </Text>
           <Text style={[styles.headline, { color: colors.foreground }]}>Financial Overview</Text>
 
           {/* Big monthly spend card */}
@@ -101,7 +111,7 @@ export default function OverviewScreen() {
           <View style={[styles.section, { backgroundColor: colors.card, borderColor: colors.border }]}>
             <View style={styles.sectionHeader}>
               <Text style={[styles.sectionTitle, { color: colors.foreground }]}>Savings Progress</Text>
-              <TouchableOpacity onPress={() => router.push("/(tabs)/savings")}>
+              <TouchableOpacity onPress={() => router.push("/(tabs)/finance")}>
                 <Text style={[styles.seeAll, { color: colors.primary }]}>See all</Text>
               </TouchableOpacity>
             </View>
@@ -147,7 +157,7 @@ export default function OverviewScreen() {
           <View style={[styles.section, { backgroundColor: colors.card, borderColor: colors.border }]}>
             <View style={styles.sectionHeader}>
               <Text style={[styles.sectionTitle, { color: colors.foreground }]}>Top Expenses</Text>
-              <TouchableOpacity onPress={() => router.push("/(tabs)/expenses")}>
+              <TouchableOpacity onPress={() => router.push("/(tabs)/finance")}>
                 <Text style={[styles.seeAll, { color: colors.primary }]}>See all</Text>
               </TouchableOpacity>
             </View>

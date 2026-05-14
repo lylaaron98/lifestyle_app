@@ -15,13 +15,9 @@ function NativeTabLayout() {
         <Icon sf={{ default: "square.grid.2x2", selected: "square.grid.2x2.fill" }} />
         <Label>Overview</Label>
       </NativeTabs.Trigger>
-      <NativeTabs.Trigger name="expenses">
-        <Icon sf={{ default: "creditcard", selected: "creditcard.fill" }} />
-        <Label>Expenses</Label>
-      </NativeTabs.Trigger>
-      <NativeTabs.Trigger name="savings">
-        <Icon sf={{ default: "chart.line.uptrend.xyaxis", selected: "chart.line.uptrend.xyaxis.circle.fill" }} />
-        <Label>Savings</Label>
+      <NativeTabs.Trigger name="finance">
+        <Icon sf={{ default: "dollarsign.circle", selected: "dollarsign.circle.fill" }} />
+        <Label>Finance</Label>
       </NativeTabs.Trigger>
       <NativeTabs.Trigger name="calendar">
         <Icon sf={{ default: "calendar", selected: "calendar.circle.fill" }} />
@@ -34,6 +30,10 @@ function NativeTabLayout() {
       <NativeTabs.Trigger name="ai">
         <Icon sf={{ default: "sparkles", selected: "sparkles" }} />
         <Label>AI</Label>
+      </NativeTabs.Trigger>
+      <NativeTabs.Trigger name="settings">
+        <Icon sf={{ default: "gearshape", selected: "gearshape.fill" }} />
+        <Label>Settings</Label>
       </NativeTabs.Trigger>
     </NativeTabs>
   );
@@ -85,18 +85,19 @@ function ClassicTabLayout() {
         }}
       />
       <Tabs.Screen
-        name="expenses"
+        name="finance"
         options={{
-          title: "Expenses",
-          tabBarIcon: ({ color }) => <Feather name="credit-card" size={20} color={color} />,
+          title: "Finance",
+          tabBarIcon: ({ color }) => <Feather name="dollar-sign" size={20} color={color} />,
         }}
       />
       <Tabs.Screen
+        name="expenses"
+        options={{ href: null }}
+      />
+      <Tabs.Screen
         name="savings"
-        options={{
-          title: "Savings",
-          tabBarIcon: ({ color }) => <Feather name="trending-up" size={20} color={color} />,
-        }}
+        options={{ href: null }}
       />
       <Tabs.Screen
         name="calendar"
@@ -121,7 +122,10 @@ function ClassicTabLayout() {
       />
       <Tabs.Screen
         name="settings"
-        options={{ href: null }}
+        options={{
+          title: "Settings",
+          tabBarIcon: ({ color }) => <Feather name="settings" size={20} color={color} />,
+        }}
       />
     </Tabs>
   );

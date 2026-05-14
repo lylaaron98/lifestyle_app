@@ -35,6 +35,161 @@ const STARTERS = [
   "Log a journal entry, feeling great today",
 ];
 
+const EXPENSE_ICONS = ["credit-card", "wifi", "tv", "music", "cloud", "smartphone", "home", "shopping-bag", "zap", "coffee", "truck", "heart"];
+const EXPENSE_COLORS = ["#2B7FFF", "#06D6A0", "#FF6B6B", "#FFD166", "#C77DFF", "#F72585", "#4CC9F0", "#FB8500", "#8AC926", "#FF4D6D"];
+const SAVINGS_ICONS = ["target", "home", "briefcase", "trending-up", "heart", "gift", "umbrella", "star", "sun", "globe"];
+
+function pickIcon(name: string, type: "expense" | "savings"): string {
+  const n = name.toLowerCase();
+  if (type === "expense") {
+    if (n.includes("netflix") || n.includes("tv") || n.includes("hulu") || n.includes("disney")) return "tv";
+    if (n.includes("spotify") || n.includes("music") || n.includes("apple music")) return "music";
+    if (n.includes("wifi") || n.includes("internet") || n.includes("broadband")) return "wifi";
+    if (n.includes("phone") || n.includes("mobile")) return "smartphone";
+    if (n.includes("rent") || n.includes("mortgage") || n.includes("home")) return "home";
+    if (n.includes("cloud") || n.includes("icloud") || n.includes("drive")) return "cloud";
+    if (n.includes("coffee") || n.includes("starbucks")) return "coffee";
+    if (n.includes("gym") || n.includes("health") || n.includes("fitness")) return "heart";
+    return EXPENSE_ICONS[Math.abs(name.charCodeAt(0)) % EXPENSE_ICONS.length];
+  }
+  if (n.includes("house") || n.includes("home") || n.includes("property")) return "home";
+  if (n.includes("holiday") || n.includes("travel") || n.includes("vacation")) return "sun";
+  if (n.includes("invest") || n.includes("stock") || n.includes("fund")) return "trending-up";
+  if (n.includes("emergency") || n.includes("rainy")) return "umbrella";
+  if (n.includes("gift") || n.includes("christmas") || n.includes("present")) return "gift";
+  return SAVINGS_ICONS[Math.abs(name.charCodeAt(0)) % SAVINGS_ICONS.length];
+}
+
+function pickColor(name: string): string {
+  let hash = 0;
+  for (let i = 0; i < name.length; i++) hash = name.charCodeAt(i) + ((hash << 5) - hash);
+  return EXPENSE_COLORS[Math.abs(hash) % EXPENSE_COLORS.length];
+}
+
+type AiCtx = {
+  expenses: { name: string; amount: number; frequency: string; category: string }[];
+  savingsPots: { name: string; type: string; currentAmount: number; goalAmount: number }[];
+  journalCount: number;
+  recentMoods: number[];
+  currency: string;
+  profileName?: string;
+  financialGoal?: string;
+};
+
+function buildSystemPrompt(ctx: AiCtx): string {
+  const { currency } = ctx;
+  const today = new Date().toISOString().split("T")[0];
+  const expensesList = ctx.expenses.length
+    ? ctx.expenses.map((e) => `- ${e.name}: ${currency}${e.amount} ${e.frequency} (${e.category})`).join("\n")
+    : "None yet";
+  const savingsList = ctx.savingsPots.length
+    ? ctx.savingsPots.map((p) => `- ${p.name}: ${currency}${p.currentAmount} saved of ${currency}${p.goalAmount} goal`).join("\n")
+    : "None yet";
+  const moodSummary = ctx.recentMoods.length
+    ? `Recent moods: ${ctx.recentMoods.join(", ")} (1=Awful, 5=Great)`
+    : "No journal entries yet";
+  return `You are a friendly, concise financial and wellbeing assistant in the Finance & Journal app.
+${ctx.profileName ? `User's name: ${ctx.profileName}.` : ""}Currency: ${currency}. Today: ${today}.
+${ctx.financialGoal ? `User's financial goal: "${ctx.financialGoal}".` : ""}
+
+User data:
+EXPENSES & SUBSCRIPTIONS:
+${expensesList}
+
+SAVINGS & INVESTMENTS:
+${savingsList}
+
+JOURNAL: ${ctx.journalCount} entries. ${moodSummary}
+
+Always respond with valid JSON in this exact format:
+{"reply":"your response","action":null}
+OR when taking an action:
+{"reply":"confirmation","action":{"type":"action_name","payload":{...}}}
+
+Available actions:
+- add_expense: payload {name,amount,category("subscription"|"expense"),frequency("daily"|"weekly"|"monthly"|"yearly"),notes}
+- add_savings_pot: payload {name,type("savings"|"investment"),currentAmount,goalAmount,notes}
+- add_journal_entry: payload {title,content,mood(1-5),date(YYYY-MM-DD)}
+- update_savings_amount: payload {potName,newAmount}
+
+Keep replies concise and friendly. Use ${currency} for amounts.`;
+}
+
+function applyActionDefaults(parsed: { reply?: string; action?: { type: string; payload: Record<string, unknown> } | null }): { reply: string; action?: ActionPayload } {
+  const today = new Date().toISOString().split("T")[0];
+  const action = parsed.action ?? null;
+  if (action) {
+    const { type, payload } = action;
+    if (type === "add_expense") {
+      payload.icon = pickIcon(String(payload.name ?? ""), "expense");
+      payload.color = pickColor(String(payload.name ?? ""));
+      payload.notes = payload.notes ?? "";
+    } else if (type === "add_savings_pot") {
+      payload.icon = pickIcon(String(payload.name ?? ""), "savings");
+      payload.color = pickColor(String(payload.name ?? ""));
+      payload.notes = payload.notes ?? "";
+    } else if (type === "add_journal_entry") {
+      payload.date = payload.date ?? today;
+      payload.title = payload.title ?? "";
+    }
+  }
+  return { reply: parsed.reply ?? "I'm not sure how to help with that.", action: action ?? undefined };
+}
+
+async function callGemini(apiKey: string, msgs: Message[], ctx: AiCtx): Promise<{ reply: string; action?: ActionPayload }> {
+  const systemPrompt = buildSystemPrompt(ctx);
+  const contents = msgs.map((m) => ({
+    role: m.role === "assistant" ? "model" : "user",
+    parts: [{ text: m.content }],
+  }));
+  const res = await fetch(
+    `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        system_instruction: { parts: [{ text: systemPrompt }] },
+        contents,
+        generationConfig: { responseMimeType: "application/json" },
+      }),
+    }
+  );
+  if (!res.ok) {
+    const errBody = await res.json().catch(() => ({})) as { error?: { message?: string } };
+    throw new Error(errBody?.error?.message ?? `Gemini error ${res.status}`);
+  }
+  const data = await res.json() as { candidates?: { content?: { parts?: { text?: string }[] } }[] };
+  const text = data?.candidates?.[0]?.content?.parts?.[0]?.text ?? '{"reply":"I\'m not sure how to help with that.","action":null}';
+  return applyActionDefaults(JSON.parse(text));
+}
+
+async function callGroq(apiKey: string, msgs: Message[], ctx: AiCtx): Promise<{ reply: string; action?: ActionPayload }> {
+  const systemPrompt = buildSystemPrompt(ctx);
+  const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "Authorization": `Bearer ${apiKey}`,
+    },
+    body: JSON.stringify({
+      model: "llama-3.3-70b-versatile",
+      messages: [
+        { role: "system", content: systemPrompt },
+        ...msgs,
+      ],
+      response_format: { type: "json_object" },
+      max_tokens: 1024,
+    }),
+  });
+  if (!res.ok) {
+    const errBody = await res.json().catch(() => ({})) as { error?: { message?: string } };
+    throw new Error(errBody?.error?.message ?? `Groq error ${res.status}`);
+  }
+  const data = await res.json() as { choices?: { message?: { content?: string } }[] };
+  const text = data?.choices?.[0]?.message?.content ?? '{"reply":"I\'m not sure how to help with that.","action":null}';
+  return applyActionDefaults(JSON.parse(text));
+}
+
 function ActionCard({
   action,
   onApply,
@@ -97,7 +252,7 @@ export default function AIScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const { expenses, savingsPots, journalEntries, currency, addExpense, addSavingsPot, addJournalEntry, updateSavingsPot } = useApp();
+  const { expenses, savingsPots, journalEntries, currency, addExpense, addSavingsPot, addJournalEntry, updateSavingsPot, geminiApiKey, profileName, financialGoal } = useApp();
 
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
@@ -121,41 +276,30 @@ export default function AIScreen() {
     setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 100);
 
     try {
-      const apiBase = process.env.EXPO_PUBLIC_DOMAIN
-        ? `https://${process.env.EXPO_PUBLIC_DOMAIN}`
-        : "";
-
-      const response = await fetch(`${apiBase}/api/ai/chat`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          messages: newMessages,
-          context: {
-            expenses: expenses.map((e) => ({ name: e.name, amount: e.amount, frequency: e.frequency, category: e.category })),
-            savingsPots: savingsPots.map((p) => ({ name: p.name, type: p.type, currentAmount: p.currentAmount, goalAmount: p.goalAmount })),
-            journalCount: journalEntries.length,
-            recentMoods: journalEntries.slice(0, 5).map((j) => j.mood),
-            currency,
-          },
-        }),
-      });
-
-      if (!response.ok) throw new Error("API error");
-
-      const data = await response.json() as { reply: string; action?: ActionPayload; error?: string };
-
-      if (data.error) throw new Error(data.error);
-
-      const assistantMsg: Message = { role: "assistant", content: data.reply };
-      setMessages((prev) => [...prev, assistantMsg]);
-
-      if (data.action) {
-        setPendingAction(data.action);
+      if (!geminiApiKey) {
+        setMessages((prev) => [...prev, { role: "assistant", content: "Please add your free Gemini API key in Settings → AI Assistant to get started. You can get one for free at aistudio.google.com" }]);
+        return;
       }
 
+      const aiCtx = {
+        expenses: expenses.map((e) => ({ name: e.name, amount: e.amount, frequency: e.frequency, category: e.category })),
+        savingsPots: savingsPots.map((p) => ({ name: p.name, type: p.type, currentAmount: p.currentAmount, goalAmount: p.goalAmount })),
+        journalCount: journalEntries.length,
+        recentMoods: journalEntries.slice(0, 5).map((j) => j.mood),
+        currency,
+        profileName,
+        financialGoal,
+      };
+      const result = geminiApiKey.startsWith("gsk_")
+        ? await callGroq(geminiApiKey, newMessages, aiCtx)
+        : await callGemini(geminiApiKey, newMessages, aiCtx);
+
+      setMessages((prev) => [...prev, { role: "assistant", content: result.reply }]);
+      if (result.action) setPendingAction(result.action);
       Haptics.selectionAsync();
-    } catch {
-      setMessages((prev) => [...prev, { role: "assistant", content: "Sorry, I couldn't connect. Please check your connection and try again." }]);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Unknown error";
+      setMessages((prev) => [...prev, { role: "assistant", content: `Sorry, something went wrong: ${msg}` }]);
     } finally {
       setLoading(false);
       setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 100);
@@ -213,7 +357,11 @@ export default function AIScreen() {
       <View style={[styles.header, { paddingTop: topInset + 16, backgroundColor: colors.background, borderBottomColor: colors.border }]}>
         <View>
           <Text style={[styles.title, { color: colors.foreground }]}>AI Assistant</Text>
-          <Text style={[styles.subtitle, { color: colors.mutedForeground }]}>Powered by OpenAI</Text>
+          <Text style={[styles.subtitle, { color: colors.mutedForeground }]}>
+            {geminiApiKey
+              ? `Powered by ${geminiApiKey.startsWith("gsk_") ? "Groq" : "Gemini"} ✓`
+              : "Setup required"}
+          </Text>
         </View>
         <TouchableOpacity style={[styles.settingsBtn, { backgroundColor: colors.card, borderColor: colors.border }]} onPress={() => router.push("/(tabs)/settings")}>
           <Feather name="settings" size={18} color={colors.foreground} />
@@ -232,8 +380,7 @@ export default function AIScreen() {
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
         >
-          {/* Empty state */}
-          {messages.length === 0 && (
+          {messages.length === 0 && geminiApiKey && (
             <View style={styles.emptyState}>
               <View style={[styles.aiAvatar, { backgroundColor: "#2B7FFF18" }]}>
                 <Feather name="zap" size={28} color="#2B7FFF" />
@@ -255,6 +402,26 @@ export default function AIScreen() {
                   </TouchableOpacity>
                 ))}
               </View>
+            </View>
+          )}
+
+          {messages.length === 0 && !geminiApiKey && (
+            <View style={styles.emptyState}>
+              <View style={[styles.aiAvatar, { backgroundColor: "#2B7FFF18" }]}>
+                <Feather name="zap" size={28} color="#2B7FFF" />
+              </View>
+              <Text style={[styles.emptyTitle, { color: colors.foreground }]}>Set up AI Assistant</Text>
+              <Text style={[styles.emptySubtitle, { color: colors.mutedForeground }]}>
+                Add a free Google Gemini API key to enable your personal financial assistant. No credit card required.
+              </Text>
+              <TouchableOpacity
+                style={[styles.setupBtn, { backgroundColor: colors.primary }]}
+                onPress={() => router.push("/(tabs)/settings")}
+              >
+                <Feather name="settings" size={16} color="#fff" />
+                <Text style={styles.setupBtnText}>Open Settings</Text>
+              </TouchableOpacity>
+              <Text style={[styles.setupHint, { color: colors.mutedForeground }]}>Free key at aistudio.google.com</Text>
             </View>
           )}
 
@@ -359,6 +526,9 @@ const styles = StyleSheet.create({
   dismissText: { fontSize: 13, fontFamily: "Inter_500Medium" },
   applyBtn: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 14, paddingVertical: 8, borderRadius: 10 },
   applyText: { color: "#fff", fontSize: 13, fontFamily: "Inter_600SemiBold" },
+  setupBtn: { flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 20, paddingVertical: 12, borderRadius: 12, marginTop: 8 },
+  setupBtnText: { color: "#fff", fontSize: 15, fontFamily: "Inter_600SemiBold" },
+  setupHint: { fontSize: 12, fontFamily: "Inter_400Regular", marginTop: 8 },
   inputRow: { flexDirection: "row", alignItems: "flex-end", gap: 10, paddingHorizontal: 16, paddingTop: 10, borderTopWidth: 1 },
   input: { flex: 1, borderRadius: 16, borderWidth: 1, paddingHorizontal: 14, paddingVertical: 10, fontSize: 15, fontFamily: "Inter_400Regular", maxHeight: 100 },
   sendBtn: { width: 44, height: 44, borderRadius: 22, alignItems: "center", justifyContent: "center", flexShrink: 0 },

@@ -63,15 +63,37 @@ interface AppContextType {
 
   currency: string;
   setCurrency: (c: string) => void;
+
+  geminiApiKey: string;
+  setGeminiApiKey: (key: string) => Promise<void>;
+
+  profileName: string;
+  profileEmoji: string;
+  weekStart: "mon" | "sun";
+  financialGoal: string;
+  setProfileName: (v: string) => Promise<void>;
+  setProfileEmoji: (v: string) => Promise<void>;
+  setWeekStart: (v: "mon" | "sun") => Promise<void>;
+  setFinancialGoal: (v: string) => Promise<void>;
+
+  colorScheme: "light" | "dark" | "system";
+  setColorScheme: (v: "light" | "dark" | "system") => Promise<void>;
 }
 
 const AppContext = createContext<AppContextType | null>(null);
+export { AppContext };
 
 const STORAGE_KEYS = {
   expenses: "@app/expenses",
   savings: "@app/savings",
   journal: "@app/journal",
   currency: "@app/currency",
+  geminiApiKey: "@app/geminiApiKey",
+  profileName: "@app/profileName",
+  profileEmoji: "@app/profileEmoji",
+  weekStart: "@app/weekStart",
+  financialGoal: "@app/financialGoal",
+  colorScheme: "@app/colorScheme",
 };
 
 function genId() {
@@ -83,20 +105,38 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [savingsPots, setSavingsPots] = useState<SavingsPot[]>([]);
   const [journalEntries, setJournalEntries] = useState<JournalEntry[]>([]);
   const [currency, setCurrencyState] = useState("£");
+  const [geminiApiKey, setGeminiApiKeyState] = useState("");
+  const [profileName, setProfileNameState] = useState("");
+  const [profileEmoji, setProfileEmojiState] = useState("😊");
+  const [weekStart, setWeekStartState] = useState<"mon" | "sun">("mon");
+  const [financialGoal, setFinancialGoalState] = useState("");
+  const [colorScheme, setColorSchemeState] = useState<"light" | "dark" | "system">("system");
 
   useEffect(() => {
     (async () => {
       try {
-        const [e, s, j, c] = await Promise.all([
+        const [e, s, j, c, gk, pn, pe, ws, fg, cs] = await Promise.all([
           AsyncStorage.getItem(STORAGE_KEYS.expenses),
           AsyncStorage.getItem(STORAGE_KEYS.savings),
           AsyncStorage.getItem(STORAGE_KEYS.journal),
           AsyncStorage.getItem(STORAGE_KEYS.currency),
+          AsyncStorage.getItem(STORAGE_KEYS.geminiApiKey),
+          AsyncStorage.getItem(STORAGE_KEYS.profileName),
+          AsyncStorage.getItem(STORAGE_KEYS.profileEmoji),
+          AsyncStorage.getItem(STORAGE_KEYS.weekStart),
+          AsyncStorage.getItem(STORAGE_KEYS.financialGoal),
+          AsyncStorage.getItem(STORAGE_KEYS.colorScheme),
         ]);
         if (e) setExpenses(JSON.parse(e));
         if (s) setSavingsPots(JSON.parse(s));
         if (j) setJournalEntries(JSON.parse(j));
         if (c) setCurrencyState(c);
+        if (gk) setGeminiApiKeyState(gk);
+        if (pn) setProfileNameState(pn);
+        if (pe) setProfileEmojiState(pe);
+        if (ws) setWeekStartState(ws as "mon" | "sun");
+        if (fg) setFinancialGoalState(fg);
+        if (cs) setColorSchemeState(cs as "light" | "dark" | "system");
       } catch {}
     })();
   }, []);
@@ -229,6 +269,36 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     await AsyncStorage.setItem(STORAGE_KEYS.currency, c);
   }, []);
 
+  const setGeminiApiKey = useCallback(async (key: string) => {
+    setGeminiApiKeyState(key);
+    await AsyncStorage.setItem(STORAGE_KEYS.geminiApiKey, key);
+  }, []);
+
+  const setProfileName = useCallback(async (v: string) => {
+    setProfileNameState(v);
+    await AsyncStorage.setItem(STORAGE_KEYS.profileName, v);
+  }, []);
+
+  const setProfileEmoji = useCallback(async (v: string) => {
+    setProfileEmojiState(v);
+    await AsyncStorage.setItem(STORAGE_KEYS.profileEmoji, v);
+  }, []);
+
+  const setWeekStart = useCallback(async (v: "mon" | "sun") => {
+    setWeekStartState(v);
+    await AsyncStorage.setItem(STORAGE_KEYS.weekStart, v);
+  }, []);
+
+  const setFinancialGoal = useCallback(async (v: string) => {
+    setFinancialGoalState(v);
+    await AsyncStorage.setItem(STORAGE_KEYS.financialGoal, v);
+  }, []);
+
+  const setColorScheme = useCallback(async (v: "light" | "dark" | "system") => {
+    setColorSchemeState(v);
+    await AsyncStorage.setItem(STORAGE_KEYS.colorScheme, v);
+  }, []);
+
   return (
     <AppContext.Provider
       value={{
@@ -247,6 +317,18 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         deleteJournalEntry,
         currency,
         setCurrency,
+        geminiApiKey,
+        setGeminiApiKey,
+        profileName,
+        profileEmoji,
+        weekStart,
+        financialGoal,
+        setProfileName,
+        setProfileEmoji,
+        setWeekStart,
+        setFinancialGoal,
+        colorScheme,
+        setColorScheme,
       }}
     >
       {children}
