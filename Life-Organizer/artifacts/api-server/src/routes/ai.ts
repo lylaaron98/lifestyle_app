@@ -170,7 +170,7 @@ Today's date is ${new Date().toISOString().split("T")[0]}.`;
     const choice = completion.choices[0];
     const toolCall = choice.message.tool_calls?.[0];
 
-    if (toolCall) {
+    if (toolCall?.type === "function") {
       let args: Record<string, unknown> = {};
       try { args = JSON.parse(toolCall.function.arguments); } catch {}
 
@@ -194,6 +194,8 @@ Today's date is ${new Date().toISOString().split("T")[0]}.`;
       const replyText = choice.message.content ?? getDefaultReply(actionType, args);
 
       res.json({ reply: replyText, action: { type: actionType, payload } });
+    } else if (toolCall) {
+      res.json({ reply: choice.message.content ?? "I couldn't process that tool request." });
     } else {
       res.json({ reply: choice.message.content ?? "I'm not sure how to help with that." });
     }

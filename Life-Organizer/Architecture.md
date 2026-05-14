@@ -4,99 +4,145 @@
 This document explains how the repository is organized, how the application runs end-to-end, and the recommended development process for local and collaborative work.
 
 ## System Overview
-The project is a pnpm monorepo centered around a lifestyle product with:
-- A mobile-first client (Expo + React Native, including web preview)
-- An API server (Express + TypeScript)
+The project is a pnpm monorepo for a personal lifestyle management app with:
+- A mobile-first client (Expo SDK ~54 + React Native, with web preview via Metro)
+- An API server (Express + TypeScript) — scaffolded, not actively used at runtime
 - Shared libraries for API contracts, client generation, validation, database access, and integrations
 
-At a high level:
-1. The mobile app manages local UX state and calls backend endpoints for AI features.
-2. The API server exposes REST routes and orchestrates AI/business logic.
-3. Shared packages keep API and type contracts consistent across client and server.
+The mobile app is currently **self-contained**: all data is persisted locally via AsyncStorage and AI features call external providers directly from the client (no backend hop required for the current feature set).
 
 ## Repository Structure
-- `README.md`: Top-level repository description.
-- `Life-Organizer/`: Monorepo root (all runtime packages and tooling).
 
-Within `Life-Organizer/`:
-- `artifacts/mobile/`: Expo Router mobile app (tabs, screens, context, hooks).
-- `artifacts/api-server/`: Express API service (`src/app.ts`, route modules, middleware).
-- `lib/api-spec/`: OpenAPI specification and codegen config.
-- `lib/api-client-react/`: Generated/maintained API client for frontend use.
-- `lib/api-zod/`: Zod validators and generated schema types.
-- `lib/db/`: Database config, schema, and Drizzle setup.
-- `lib/integrations*`: External provider integrations (including OpenAI modules).
-- `scripts/`: Workspace utility scripts.
+```
+lifestyle_app/            ← Git repo root
+  .gitignore
+  README.md
+  Life-Organizer/         ← Monorepo root (all runtime packages and tooling)
+    artifacts/
+      mobile/             ← Expo Router app (the active product)
+      api-server/         ← Express REST API (scaffolded)
+      mockup-sandbox/     ← Vite + React component sandbox
+    lib/
+      api-spec/           ← OpenAPI contract + orval codegen config
+      api-client-react/   ← Generated typed API client
+      api-zod/            ← Generated Zod schemas
+      db/                 ← Drizzle ORM schema + config
+      integrations-openai-ai-react/   ← OpenAI hooks for React
+      integrations-openai-ai-server/  ← OpenAI helpers for server
+    scripts/              ← Workspace utility scripts
+```
+
+## Mobile App — Feature Tabs
+
+The app uses **expo-router** file-based routing. All tab screens live in `artifacts/mobile/app/(tabs)/`.
+
+| Tab file | Route name | Feature |
+|---|---|---|
+| `index.tsx` | Overview | Dashboard with personalised greeting, expense summary, savings progress, recent journal mood |
+| `finance.tsx` | Finance | Segmented Expenses / Savings view; add, edit, delete, reorder expenses and savings pots |
+| `calendar.tsx` | Calendar | Monthly calendar grid with Singapore public holidays (data.gov.sg), Google Calendar OAuth, custom iCal/ICS feeds |
+| `journal.tsx` | Journal | Daily journal entries with mood rating (1–5), title, and free-text content |
+| `ai.tsx` | AI | Chat assistant powered by Google Gemini or Groq (auto-detected by API key prefix); context-aware of user finances and profile |
+| `settings.tsx` | Settings | User profile, appearance theme, preferences (currency, week start, financial goal), AI key management |
+
+> `expenses.tsx` and `savings.tsx` have been removed — their functionality was consolidated into `finance.tsx`.
+
+## State Management
+
+All application state lives in `artifacts/mobile/context/AppContext.tsx` and is persisted to device storage via `@react-native-async-storage/async-storage`.
+
+**Stored data:**
+
+| Key | Type | Description |
+|---|---|---|
+| `@app/expenses` | `ExpenseItem[]` | Expenses and subscriptions |
+| `@app/savings` | `SavingsPot[]` | Savings and investment pots |
+| `@app/journal` | `JournalEntry[]` | Journal entries with mood |
+| `@app/currency` | `string` | Selected currency symbol |
+| `@app/geminiApiKey` | `string` | Gemini or Groq API key |
+| `@app/profileName` | `string` | User display name |
+| `@app/profileEmoji` | `string` | User avatar emoji |
+| `@app/weekStart` | `"mon" \| "sun"` | Calendar week start preference |
+| `@app/financialGoal` | `string` | Free-text financial goal |
+| `@app/colorScheme` | `"light" \| "dark" \| "system"` | In-app theme override |
+
+## Theming
+
+- Color palettes (`light` and `dark`) defined in `artifacts/mobile/constants/colors.ts`.
+- `useColors()` hook (`artifacts/mobile/hooks/useColors.ts`) resolves the active palette by reading the `colorScheme` override from `AppContext`, falling back to the device system scheme.
+- All screens consume `useColors()` for consistent token-based styling.
+- User can select Light / System / Dark in Settings → Appearance.
+
+## AI Integration
+
+The AI tab calls external LLM providers **directly from the client** (no backend required):
+
+| Provider | Model | Key detection |
+|---|---|---|
+| Google Gemini | `gemini-2.0-flash` | Any key that does NOT start with `gsk_` |
+| Groq | `llama-3.3-70b-versatile` | Keys starting with `gsk_` |
+
+- Responses are requested in JSON mode and parsed into a structured `{ message, actions[] }` payload.
+- The system prompt includes the user's profile name, financial goal, live expense/savings totals, recent journal moods, and currency.
+- Both providers offer a free tier with no credit card required.
 
 ## Architectural Boundaries
-- Presentation layer:
-  - Implemented in `artifacts/mobile/app/` and `artifacts/mobile/components/`.
-  - Responsible for navigation, interaction, and local UX behavior.
-- Application/state layer:
-  - Primarily in `artifacts/mobile/context/` and feature screens.
-  - Owns local state transitions and user-driven actions.
-- API layer:
-  - Implemented in `artifacts/api-server/src/routes/`.
-  - Defines request/response boundaries and business endpoints.
-- Domain/data contracts:
-  - OpenAPI contract in `lib/api-spec/openapi.yaml`.
-  - Generated clients/schemas in `lib/api-client-react` and `lib/api-zod`.
-- Persistence layer:
-  - Database schema and access in `lib/db` (Drizzle + Postgres).
-- Integration layer:
-  - Third-party AI and service connectors in integration libraries.
 
-## Request/Data Flow
-Typical flow for AI-assisted user actions:
-1. User action originates in a mobile tab/screen.
-2. Client sends request to API route (for example AI chat endpoint).
-3. API route validates/parses payload, composes domain context.
-4. Integration package calls external AI provider.
-5. API returns structured response and optional action payload.
-6. Mobile app updates local state/UI based on response.
+- **Presentation layer** — `artifacts/mobile/app/` and `artifacts/mobile/components/`
+- **State / application layer** — `artifacts/mobile/context/AppContext.tsx`
+- **Theming layer** — `artifacts/mobile/constants/colors.ts` + `hooks/useColors.ts`
+- **API layer** (scaffolded) — `artifacts/api-server/src/routes/`
+- **Contract layer** — `lib/api-spec/openapi.yaml`, `lib/api-client-react`, `lib/api-zod`
+- **Persistence layer** (scaffolded) — `lib/db` (Drizzle + Postgres)
+- **Integration layer** — `lib/integrations-openai-ai-react`, `lib/integrations-openai-ai-server`
 
-The same pattern is expected for non-AI data features, with database-backed operations in API handlers where applicable.
+## Local Development Workflow
 
-## Development Process
-Recommended development loop:
-1. Define or update API contract first in `lib/api-spec/openapi.yaml`.
-2. Regenerate typed clients/schemas (`api-client-react`, `api-zod`).
-3. Implement/adjust API route behavior in `artifacts/api-server`.
-4. Build UI behavior in `artifacts/mobile` using typed client contracts.
-5. Run type checks and targeted manual validation (web preview and device).
-
-## Local Workflow (Windows-friendly)
-Prerequisites:
-- Node.js (v22+ recommended for this repo)
-- Corepack enabled
+**Prerequisites:**
+- Node.js v22+
+- Corepack enabled (`corepack enable`)
 - pnpm activated via Corepack
 
-Core commands from `Life-Organizer/`:
-- `pnpm install`
-- `pnpm --filter @workspace/mobile run dev:web` (web preview)
-- `pnpm --filter @workspace/mobile run dev:local` (local Expo runtime)
-- `pnpm --filter @workspace/mobile run dev:tunnel` (device testing over tunnel)
-- `pnpm --filter @workspace/api-server run dev` (API server)
-- `pnpm run typecheck`
-- `pnpm run build`
+**All commands run from `Life-Organizer/`:**
 
-## Build and Quality Gates
-- Type safety:
-  - Workspace-level TypeScript build/check commands validate package boundaries.
-- Contract consistency:
-  - OpenAPI plus generated clients/schemas reduces drift between server and client.
-- Package boundaries:
-  - Feature artifacts consume shared libs instead of duplicating contracts.
+```powershell
+pnpm install
+
+# Mobile app (web preview at http://localhost:8081)
+pnpm --filter @workspace/mobile run dev:web
+
+# Mobile app (Expo Go on device)
+pnpm --filter @workspace/mobile run dev:local
+
+# Mobile app (tunnel for external device access)
+pnpm --filter @workspace/mobile run dev:tunnel
+
+# API server
+pnpm --filter @workspace/api-server run dev
+
+# Type check entire workspace
+pnpm run typecheck
+```
+
+**Git workflow (also from `Life-Organizer/`):**
+```powershell
+git add -A
+git commit -m "description"
+git push
+```
+
+> The repo root (`lifestyle_app/`) only contains `.git/`, `.gitignore`, `README.md`, and the `Life-Organizer/` subfolder. All project files are tracked under the `Life-Organizer/` path prefix in git.
 
 ## Design Principles
-- Contract-first APIs for safer iteration.
-- Shared types and schemas to reduce runtime mismatch.
-- Clear separation between UI, API, integrations, and persistence.
-- Monorepo workflows to keep multi-package changes atomic.
+- Local-first: all user data stored on-device; no account or backend required to use the app.
+- Token-based theming with light/dark/system support throughout.
+- Provider-agnostic AI: key-prefix detection allows swapping LLM providers without UI changes.
+- Monorepo structure keeps shared contracts, types, and tooling co-located for future backend expansion.
 
-## Current Known Technical Notes
-- Some mobile typecheck errors can exist independently of runtime startup and should be resolved as part of ongoing cleanup.
-- Local development on Windows requires allowing platform-appropriate optional native dependencies in pnpm setup.
+## Current Technical Notes
+- The API server and shared lib packages (`api-spec`, `api-client-react`, `api-zod`, `db`) are scaffolded but not exercised at runtime — the mobile app operates fully client-side.
+- Some TypeScript strict-mode warnings may exist in scaffolded packages independent of mobile runtime behaviour.
+- Local development on Windows requires platform-appropriate optional native dependencies in pnpm setup (handled by `.npmrc` settings).
 
 ## Suggested Near-Term Improvements
 1. Add architecture decision records (ADRs) for major choices (Expo Router, contract-first API, DB strategy).
